@@ -1,0 +1,11 @@
+﻿scenario,preset,seed,train_last100_success_percent,train_last100_avg_goal_without_package_visits,train_last100_avg_danger_hits,train_last100_mean_reward,eval_delivered,eval_steps,eval_reward,eval_goal_without_package_visits,eval_danger_hits
+F1,bad_reward,11,0,0,0,0.0,0,378,0.0,0,0
+F1,bad_reward,22,0,0,0,0.0,0,378,0.0,0,0
+F1,bad_reward,33,0,0,0,0.0,0,378,0.0,0,0
+F1,bad_reward,44,0,0,0,0.0,0,378,0.0,0,0
+F1,bad_reward,55,0,0,0,0.0,0,378,0.0,0,0
+X1,improved_reward,11,100,0,0,12.53,1,15,18.0,0,0
+X1,improved_reward,22,100,0,0,12.09,1,15,18.0,0,0
+X1,improved_reward,33,100,0,0,11.31,1,15,18.0,0,0
+X1,improved_reward,44,98.0,0,0.02,10.11,1,15,18.0,0,0
+X1,improved_reward,55,100,0,0,11.75,1,15,18.0,0,0

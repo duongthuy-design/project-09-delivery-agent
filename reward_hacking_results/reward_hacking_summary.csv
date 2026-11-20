@@ -1,0 +1,3 @@
+﻿scenario,preset,map,episodes_per_seed,seeds,alpha,gamma,epsilon_train,train_last100_success_percent,train_last100_avg_goal_without_package_visits,train_last100_avg_danger_hits,eval_success_percent,eval_avg_goal_without_package_visits,eval_avg_danger_hits,eval_mean_reward,eval_mean_steps
+F1,bad_reward,medium,1000,5,0.2,0.95,0.2,0,0,0,0,0,0,0.0,378
+X1,improved_reward,medium,1000,5,0.2,0.95,0.2,99.6,0,0.0,100,0,0,18.0,15
