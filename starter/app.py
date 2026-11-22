@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import random
 import sys
+import time
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import streamlit as st
 
 # Allow importing modules from the project root.
@@ -31,9 +33,11 @@ from environment.gridworld import (
 )
 
 from starter import student_core
-from starter.visualization import plot_grid
-
-
+from starter.visualization import (
+    plot_grid,
+    plot_q_heatmap,
+    plot_policy_arrows,
+)
 # ============================================================
 # 1. STREAMLIT PAGE CONFIGURATION
 # ============================================================
@@ -48,6 +52,34 @@ st.title("Autonomous Campus Delivery Agent")
 st.caption(
     "Final Project - Tabular Q-learning Delivery Simulation"
 )
+
+# ============================================================
+# TRACK TRAINING REWARDS FOR LEARNING CURVE
+# ============================================================
+
+class TrackingGridWorld(GridWorld):
+    """Record the total reward of each training episode."""
+
+    def __init__(self, *args, **kwargs):
+        self.episode_rewards = []
+        self.current_episode_reward = 0.0
+        super().__init__(*args, **kwargs)
+
+    def reset(self):
+        self.current_episode_reward = 0.0
+        return super().reset()
+
+    def step(self, action):
+        result = super().step(action)
+
+        self.current_episode_reward += float(result.reward)
+
+        if result.done:
+            self.episode_rewards.append(
+                self.current_episode_reward
+            )
+
+        return result
 
 
 # ============================================================
@@ -95,11 +127,16 @@ def get_env(map_name: str, preset: str) -> GridWorld:
     )
 
     if st.session_state.get("_env_key") != selected_key:
+        st.session_state.pop("comparison_results", None)
 
         # A Q-table from another map or reward configuration
         # must not be reused.
         st.session_state.pop(
             "trained_q_table",
+            None,
+        )
+        st.session_state.pop(
+            "training_rewards",
             None,
         )
 
@@ -269,6 +306,17 @@ with st.sidebar:
         type="primary",
         use_container_width=True,
     )
+    st.divider()
+
+    st.header("Simulation Settings")
+
+    animation_delay = st.slider(
+        "Robot Speed (seconds per step)",
+        min_value=0.05,
+        max_value=1.0,
+        value=0.30,
+        step=0.05,
+    )
 
 
 # ============================================================
@@ -286,9 +334,9 @@ env = get_env(
 # ============================================================
 
 if train_clicked:
-
+    st.session_state.pop("comparison_results", None)
     # Create a separate environment for training.
-    training_env = GridWorld(
+    training_env = TrackingGridWorld(
         map_name=map_name,
         reward_preset=preset,
     )
@@ -327,6 +375,9 @@ if train_clicked:
     # --------------------------------------------------------
 
     st.session_state["trained_q_table"] = q_table
+    st.session_state["training_rewards"] = (
+        training_env.episode_rewards
+    )
 
     st.session_state["training_details"] = (
         f"Map: {map_name} | "
@@ -472,23 +523,9 @@ elif trained_step_clicked:
 
 
 elif trained_run_clicked:
-
-    # Execute the learned policy until the episode ends.
-    # GridWorld stops the episode at its configured step limit.
-    while not env.is_terminal():
-
-        action = student_core.select_action(
-            env.state,
-            q_table,
-            env.actions,
-            epsilon=0.0,
-        )
-
-        take_step(
-            env,
-            action,
-            "Trained",
-        )
+    # The animated run will be handled
+    # in the map visualization section.
+    pass
 
 
 # ============================================================
@@ -499,18 +536,76 @@ col_grid, col_info = st.columns(
     [2, 1]
 )
 
+
 with col_grid:
 
     st.subheader("Campus Delivery Map")
 
-    fig = plot_grid(env)
+    # Placeholder for updating the map.
+    map_placeholder = st.empty()
 
-    st.pyplot(
+    # Display live animation information.
+    progress_placeholder = st.empty()
+
+    # Show the initial map before moving.
+    fig = plot_grid(
+        env,
+        st.session_state["path"],
+    )
+
+    map_placeholder.pyplot(
         fig,
         clear_figure=True,
     )
 
     plt.close(fig)
+
+    # --------------------------------------------------------
+    # Animated Q-learning execution
+    # --------------------------------------------------------
+
+    if trained_run_clicked:
+
+        while not env.is_terminal():
+
+            # Select the best action from the trained Q-table.
+            action = student_core.select_action(
+                env.state,
+                q_table,
+                env.actions,
+                epsilon=0.0,
+            )
+
+            # Move the robot one step.
+            take_step(
+                env,
+                action,
+                "Trained",
+            )
+
+            # Draw the updated map.
+            fig = plot_grid(
+                env,
+                st.session_state["path"],
+            )
+            map_placeholder.pyplot(
+                fig,
+                clear_figure=True,
+            )
+
+            plt.close(fig)
+
+            # Update the live status.
+            progress_placeholder.info(
+                f"Step: {env.steps_taken}/{env.max_steps} "
+                f"| Position: {env.position} "
+                f"| Action: {action} "
+                f"| Reward: "
+                f"{st.session_state['episode_reward']:.1f}"
+            )
+
+            # Wait before the next movement.
+            time.sleep(animation_delay)
 
     st.caption(
         "S = START | "
@@ -520,6 +615,7 @@ with col_grid:
         "@ = ROBOT | "
         "Dark cells = WALL"
     )
+
 
 
 # ============================================================
@@ -611,6 +707,7 @@ else:
 # 14. ROBOT PATH
 # ============================================================
 
+
 with st.expander("Robot Delivery Path"):
 
     path = st.session_state["path"]
@@ -620,12 +717,461 @@ with st.expander("Robot Delivery Path"):
         for position in path[:80]
     )
 
-    st.code(
-        path_text
-    )
+    st.code(path_text)
 
     if len(path) > 80:
-
         st.caption(
             "Path display is limited to 80 positions."
         )
+
+
+# ============================================================
+# 15. LEARNING CURVE
+# ============================================================
+
+st.divider()
+st.subheader("Q-learning Training Curve")
+
+training_rewards = st.session_state.get(
+    "training_rewards", []
+)
+
+if training_rewards:
+
+    reward_df = pd.DataFrame({
+        "Episode": range(
+            1,
+            len(training_rewards) + 1
+        ),
+        "Episode Reward": training_rewards,
+    })
+
+    # Calculate moving average over 50 episodes.
+    reward_df["Moving Average (50)"] = (
+        reward_df["Episode Reward"]
+        .rolling(window=50, min_periods=1)
+        .mean()
+    )
+
+
+    # Draw Learning Curve using Matplotlib.
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    # Episode reward.
+    ax.plot(
+        reward_df["Episode"],
+        reward_df["Episode Reward"],
+        color="#93C5FD",
+        linewidth=1,
+        alpha=0.45,
+        label="Episode Reward",
+    )
+
+    # Moving average.
+    ax.plot(
+        reward_df["Episode"],
+        reward_df["Moving Average (50)"],
+        color="#F97316",
+        linewidth=2.5,
+        label="Moving Average (50)",
+    )
+
+    ax.set_title("Q-learning Training Progress")
+    ax.set_xlabel("Training Episode")
+    ax.set_ylabel("Total Reward")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+
+    st.pyplot(fig)
+    plt.close(fig)
+
+
+    st.caption(
+        "Episode Reward: total reward per training episode. "
+        "Moving Average (50): smoothed reward trend."
+    )
+
+    avg_last_100 = sum(
+        training_rewards[-100:]
+    ) / min(100, len(training_rewards))
+
+    st.metric(
+        "Average Reward (Last 100 Episodes)",
+        f"{avg_last_100:.2f}",
+    )
+
+    # Download training results as CSV.
+    csv_data = reward_df.to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        label="Download Training Results (CSV)",
+        data=csv_data,
+        file_name="q_learning_training_results.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+
+else:
+
+    st.info(
+        "Train the Q-learning agent to display "
+        "its learning curve."
+    )
+
+
+
+# ============================================================
+# 16. Q-VALUE HEATMAP
+# ============================================================
+
+st.divider()
+st.subheader("Q-value Heatmap")
+
+st.caption(
+    "Visualize the highest learned Q-value "
+    "at each grid position."
+)
+
+if trained and q_table:
+
+    heatmap_mode = st.radio(
+        "Select Agent State",
+        options=[
+            "Before Pickup",
+            "After Pickup",
+        ],
+        horizontal=True,
+    )
+
+    has_package = (
+        heatmap_mode == "After Pickup"
+    )
+
+    fig = plot_q_heatmap(
+        env=env,
+        q_table=q_table,
+        has_package=has_package,
+    )
+
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.caption(
+        "Brighter colors represent higher learned Q-values. "
+        "Gray cells have no recorded Q-values. "
+        "Dark cells are walls."
+    )
+
+else:
+
+    st.info(
+        "Train the Q-learning agent first "
+        "to display the Q-value Heatmap."
+    )
+
+# ============================================================
+# 17. POLICY ARROWS VISUALIZATION
+# ============================================================
+
+st.divider()
+st.subheader("Learned Policy Arrows")
+
+st.caption(
+    "Visualize the best learned action "
+    "at each grid position."
+)
+
+if trained and q_table:
+
+    policy_mode = st.radio(
+        "Select Policy State",
+        options=[
+            "Before Pickup",
+            "After Pickup",
+        ],
+        horizontal=True,
+        key="policy_mode",
+    )
+
+    has_package_policy = (
+        policy_mode == "After Pickup"
+    )
+
+    fig = plot_policy_arrows(
+        env=env,
+        q_table=q_table,
+        has_package=has_package_policy,
+    )
+
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.caption(
+        "↑ UP | ↓ DOWN | ← LEFT | → RIGHT. "
+        "Arrows show the highest Q-value action. "
+        "Cells without a learned action preference "
+        "have no arrow."
+    )
+
+else:
+
+    st.info(
+        "Train the Q-learning agent first "
+        "to display the learned policy."
+    )
+
+
+# ============================================================
+# 18. RANDOM AGENT VS Q-LEARNING COMPARISON
+# ============================================================
+
+st.divider()
+st.subheader("Random Agent vs. Q-learning Agent")
+
+st.caption(
+    "Compare a random agent with the trained Q-learning "
+    "agent using the same map and reward configuration."
+)
+
+
+def evaluate_comparison_episode(policy, rng=None):
+    """Evaluate one episode without further training."""
+
+    test_env = GridWorld(
+        map_name=map_name,
+        reward_preset=preset,
+    )
+
+    state = test_env.reset()
+    total_reward = 0.0
+    delivered = False
+
+    while not test_env.is_terminal():
+
+        if policy == "Random":
+            # Use a separate random generator.
+            action = rng.choice(tuple(test_env.actions))
+
+        else:
+            # Evaluate Q-learning without exploration.
+            action = student_core.select_action(
+                state,
+                q_table,
+                test_env.actions,
+                epsilon=0.0,
+            )
+
+        result = test_env.step(action)
+
+        total_reward += float(result.reward)
+
+        delivered = (
+            delivered
+            or bool(result.info.get("delivered", False))
+        )
+
+        state = result.state
+
+    return {
+        "delivered": delivered,
+        "steps": test_env.steps_taken,
+        "reward": total_reward,
+    }
+
+
+if trained:
+
+    random_runs = st.number_input(
+        "Number of Random Agent evaluation runs",
+        min_value=10,
+        max_value=100,
+        value=30,
+        step=10,
+    )
+
+    compare_clicked = st.button(
+        "Compare Random vs. Q-learning",
+        use_container_width=True,
+    )
+
+    if compare_clicked:
+
+        # The environment is deterministic.
+        # One greedy run represents the current trained policy.
+        trained_result = evaluate_comparison_episode(
+            "Q-learning"
+        )
+
+        # Run multiple independent random episodes.
+        random_results = []
+
+        for run_index in range(int(random_runs)):
+
+            rng = random.Random(
+                int(seed) + run_index
+            )
+
+            run_result = evaluate_comparison_episode(
+                "Random",
+                rng=rng,
+            )
+
+            random_results.append(run_result)
+
+        # Calculate random baseline statistics.
+        n = len(random_results)
+
+        random_success = (
+            100.0
+            * sum(r["delivered"] for r in random_results)
+            / n
+        )
+
+        random_steps = (
+            sum(r["steps"] for r in random_results)
+            / n
+        )
+
+        random_reward = (
+            sum(r["reward"] for r in random_results)
+            / n
+        )
+
+        # Calculate trained policy statistics.
+        trained_success = (
+            100.0 if trained_result["delivered"] else 0.0
+        )
+
+        trained_steps = float(
+            trained_result["steps"]
+        )
+
+        trained_reward = float(
+            trained_result["reward"]
+        )
+
+        # Save results so they remain visible after reruns.
+        st.session_state["comparison_results"] = {
+            "random_success": random_success,
+            "random_steps": random_steps,
+            "random_reward": random_reward,
+            "trained_success": trained_success,
+            "trained_steps": trained_steps,
+            "trained_reward": trained_reward,
+            "runs": n,
+        }
+
+    comparison = st.session_state.get(
+        "comparison_results"
+    )
+
+    if comparison:
+
+        st.success("Agent comparison completed!")
+
+        st.caption(
+            f"Random: {comparison['runs']} evaluation runs. "
+            "Q-learning: one deterministic greedy run."
+        )
+
+        # ----------------------------------------------------
+        # SUCCESS RATE
+        # ----------------------------------------------------
+
+        st.markdown("#### Delivery Success Rate")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric(
+                "Random Agent",
+                f"{comparison['random_success']:.1f}%",
+            )
+
+        with col2:
+            st.metric(
+                "Q-learning Agent",
+                f"{comparison['trained_success']:.1f}%",
+            )
+
+        # Draw a success rate comparison chart.
+        fig, ax = plt.subplots(figsize=(7, 4))
+
+        ax.bar(
+            ["Random Agent", "Q-learning Agent"],
+            [
+                comparison["random_success"],
+                comparison["trained_success"],
+            ],
+            color=["#94A3B8", "#2563EB"],
+            width=0.5,
+        )
+
+        ax.set_ylim(0, 105)
+        ax.set_ylabel("Delivery Success Rate (%)")
+        ax.set_title("Delivery Success Comparison")
+        ax.grid(axis="y", alpha=0.25)
+
+        fig.tight_layout()
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+        # ----------------------------------------------------
+        # AVERAGE STEPS
+        # ----------------------------------------------------
+
+        st.markdown("#### Average Steps")
+
+        col3, col4 = st.columns(2)
+
+        with col3:
+            st.metric(
+                "Random Agent",
+                f"{comparison['random_steps']:.1f}",
+            )
+
+        with col4:
+            st.metric(
+                "Q-learning Agent",
+                f"{comparison['trained_steps']:.1f}",
+            )
+
+        # ----------------------------------------------------
+        # AVERAGE REWARD
+        # ----------------------------------------------------
+
+        st.markdown("#### Average Reward")
+
+        col5, col6 = st.columns(2)
+
+        with col5:
+            st.metric(
+                "Random Agent",
+                f"{comparison['random_reward']:.1f}",
+            )
+
+        with col6:
+            st.metric(
+                "Q-learning Agent",
+                f"{comparison['trained_reward']:.1f}",
+            )
+
+        st.caption(
+            "Average Steps includes successful and failed "
+            "episodes. Random results are averaged across "
+            "multiple runs; Q-learning evaluates the current "
+            "trained policy on a deterministic map. "
+            "A multi-seed training experiment is needed "
+            "to assess Q-learning stability."
+        )
+
+else:
+
+    st.info(
+        "Train the Q-learning agent first "
+        "to enable agent comparison."
+    )
