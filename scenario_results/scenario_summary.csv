@@ -1,0 +1,11 @@
+﻿scenario,map,reward_preset,agent,runs,training_episodes,success_rate_percent,avg_steps,avg_reward,avg_danger_hits,avg_goal_without_package
+N1,easy,default,Random,30,0,63.33,207.67,-251.03,0,1.57
+N1,easy,default,Q-learning,5,1000,100,10,15.0,0,0
+D1,hard,default,Random,30,0,0,671.47,-1299.43,0.53,2.93
+D1,hard,default,Q-learning,5,2000,100,46,-21.0,0,0
+D2,medium,default,Random,30,0,30.0,158.3,-249.6,0.6,0.87
+D2,medium,default,Q-learning,5,1000,100,15,10.0,0,0
+F1,medium,bad_reward,Random,30,0,63.33,254.27,2.43,3.4,1.8
+F1,medium,bad_reward,Q-learning,5,1000,0,378,0.0,0,0
+X1,medium,improved_reward,Random,30,0,30.0,158.3,-250.73,0.6,0.87
+X1,medium,improved_reward,Q-learning,5,1000,100,15,18.0,0,0
