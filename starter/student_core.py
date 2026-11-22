@@ -17,7 +17,7 @@ the tabular Q-learning update loop.
 from __future__ import annotations
 
 import random
-from typing import Dict, Iterable, Tuple
+from typing import Callable, Dict, Iterable, Tuple
 
 State = Tuple[int, int, bool]
 QTable = Dict[Tuple[State, str], float]
@@ -73,76 +73,38 @@ def q_learning(
     alpha: float,
     gamma: float,
     epsilon: float,
+    on_episode_end: Optional[Callable[[int, float, QTable], None]] = None,
 ) -> QTable:
-    """Train a tabular Q-learning agent on ``env``.
-
-    Run ``episodes`` episodes. Each episode should call ``env.reset()``,
-    then repeatedly call ``select_action`` and ``env.step`` until the
-    episode is done, applying the standard Q-learning update:
-
-        Q(s, a) <- Q(s, a) + alpha * (r + gamma * max_a' Q(s', a') - Q(s, a))
-
-    Args:
-        env: a ``environment.gridworld.GridWorld`` instance.
-        episodes: number of training episodes to run.
-        alpha: learning rate.
-        gamma: discount factor.
-        epsilon: exploration probability for the behavior policy.
-
-    Returns:
-        The learned Q-table mapping ``(state, action) -> value``. An empty
-        or all-zero table is not a valid "trained" result; this function
-        must actually run the update loop above.
-    """
-    # Validate training parameters
-    if episodes <= 0:
-        raise ValueError("episodes must be greater than 0")
-
+    if episodes < 0:
+        raise ValueError("episodes must be non-negative")
     if not 0.0 < alpha <= 1.0:
         raise ValueError("alpha must be greater than 0 and at most 1")
-
     if not 0.0 <= gamma <= 1.0:
         raise ValueError("gamma must be between 0 and 1 inclusive")
-
     if not 0.0 <= epsilon <= 1.0:
         raise ValueError("epsilon must be between 0 and 1 inclusive")
 
-    # Get available actions from the environment
     actions = tuple(env.actions)
-
     if not actions:
         raise ValueError("env.actions must contain at least one action")
 
-    # Initialize an empty Q-table
     q_table: QTable = {}
 
-    # Training loop
-    for _ in range(episodes):
-
-        # Reset the environment for a new episode
+    for ep in range(episodes):
         state = env.reset()
         done = False
+        episode_reward = 0.0
 
-        # Run until the episode finishes
         while not done:
-
-            # Step 1: Select an action
-            action = select_action(
-                state, q_table, actions, epsilon
-            )
-
-            # Step 2: Execute the action
+            action = select_action(state, q_table, actions, epsilon)
             result = env.step(action)
 
-            # Step 3: Get the transition result
             next_state = result.state
             reward = float(result.reward)
             done = bool(result.done)
+            episode_reward += reward
 
-            # Step 4: Get the old Q-value
             old_value = q_table.get((state, action), 0.0)
-
-            # Step 5: Calculate the target Q-value
             if done:
                 target = reward
             else:
@@ -150,17 +112,13 @@ def q_learning(
                     q_table.get((next_state, next_action), 0.0)
                     for next_action in actions
                 )
-
                 target = reward + gamma * best_next_value
 
-            # Step 6: Update the Q-table
-            q_table[(state, action)] = (
-                    old_value + alpha * (target - old_value)
-            )
-
-            # Step 7: Move to the next state
+            q_table[(state, action)] = old_value + alpha * (target - old_value)
             state = next_state
 
-    # Return the learned Q-table
-    return q_table
+        # Gọi callback nếu được truyền từ Streamlit để vẽ biểu đồ real-time
+        if on_episode_end is not None:
+            on_episode_end(ep, episode_reward, q_table)
 
+    return q_table
