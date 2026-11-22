@@ -948,6 +948,8 @@ def evaluate_comparison_episode(policy, rng=None):
     state = test_env.reset()
     total_reward = 0.0
     delivered = False
+    danger_hits = 0
+
 
     while not test_env.is_terminal():
 
@@ -966,6 +968,11 @@ def evaluate_comparison_episode(policy, rng=None):
 
         result = test_env.step(action)
 
+        # Count encounters with dangerous cells.
+        if result.info.get("hit_danger", False):
+            danger_hits += 1
+
+
         total_reward += float(result.reward)
 
         delivered = (
@@ -975,11 +982,14 @@ def evaluate_comparison_episode(policy, rng=None):
 
         state = result.state
 
+
     return {
         "delivered": delivered,
         "steps": test_env.steps_taken,
         "reward": total_reward,
+        "danger_hits": danger_hits,
     }
+
 
 
 if trained:
@@ -1040,6 +1050,13 @@ if trained:
             / n
         )
 
+        # Average danger encounters for Random Agent.
+        random_danger_hits = (
+            sum(r["danger_hits"] for r in random_results)
+            / n
+        )
+
+
         # Calculate trained policy statistics.
         trained_success = (
             100.0 if trained_result["delivered"] else 0.0
@@ -1053,6 +1070,12 @@ if trained:
             trained_result["reward"]
         )
 
+        # Danger encounters for the trained agent.
+        trained_danger_hits = float(
+            trained_result["danger_hits"]
+        )
+
+
         # Save results so they remain visible after reruns.
         st.session_state["comparison_results"] = {
             "random_success": random_success,
@@ -1061,6 +1084,8 @@ if trained:
             "trained_success": trained_success,
             "trained_steps": trained_steps,
             "trained_reward": trained_reward,
+            "random_danger_hits": random_danger_hits,
+            "trained_danger_hits": trained_danger_hits,
             "runs": n,
         }
 
@@ -1159,6 +1184,33 @@ if trained:
                 "Q-learning Agent",
                 f"{comparison['trained_reward']:.1f}",
             )
+
+        # ----------------------------------------------------
+        # DANGER HITS COMPARISON
+        # ----------------------------------------------------
+
+        st.markdown("#### Average Danger Hits")
+
+        col7, col8 = st.columns(2)
+
+        with col7:
+            st.metric(
+                "Random Agent",
+                f"{comparison['random_danger_hits']:.2f}",
+            )
+
+        with col8:
+            st.metric(
+                "Q-learning Agent",
+                f"{comparison['trained_danger_hits']:.2f}",
+            )
+
+        st.caption(
+            "Lower is better. Random results are averaged "
+            "over multiple runs, while Q-learning is "
+            "evaluated using one trained greedy policy."
+        )
+
 
         st.caption(
             "Average Steps includes successful and failed "
