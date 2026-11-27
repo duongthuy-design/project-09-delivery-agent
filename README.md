@@ -1,4 +1,3 @@
-
 # Project 09 — Autonomous Campus Delivery Agent
 
 **Course:** Artificial Intelligence  
@@ -9,6 +8,8 @@
 
 **GitHub Repository:**  
 https://github.com/duongthuy-design/project-09-delivery-agent
+
+**Main Branch:** `main`
 
 ---
 
@@ -43,6 +44,8 @@ The main objectives are:
 - Compare Q-learning against a random baseline.
 - Analyze reward design and unsuccessful policies.
 - Evaluate performance across different map difficulties.
+- Test the agent on altered obstacle maps.
+- Provide a custom map loading feature.
 - Visualize the learned policy and training process.
 - Provide an interactive Streamlit application.
 - Conduct reproducible experiments across multiple random seeds.
@@ -59,12 +62,19 @@ The environment contains the following elements:
 | D | DANGER | Hazardous area with a reward penalty |
 | # | WALL | Impassable obstacle |
 | @ | ROBOT | Current position of the agent |
+| . | EMPTY | Walkable cell |
 
-Three maps are available:
+### 1.4 Available Maps
+
+The project includes five maps:
 
 - **Easy:** A relatively open environment suitable for basic navigation.
 - **Medium:** A larger environment with obstacles and hazardous cells.
 - **Hard:** A complex environment requiring more careful route planning.
+- **Medium Altered:** An additional map with a modified obstacle arrangement for testing navigation under changed environmental conditions.
+- **Custom Test 02:** A user-created map saved through the Streamlit Custom Map Loader.
+
+The application also supports creating additional custom maps using JSON input.
 
 ---
 
@@ -108,7 +118,7 @@ The robot can perform four actions:
 ACTIONS = ("UP", "DOWN", "LEFT", "RIGHT")
 ```
 
-Movement is restricted by the map boundaries and walls.
+Movement is restricted by map boundaries and walls.
 
 ### 2.3 Reward Function
 
@@ -154,6 +164,8 @@ The agent selects actions according to an epsilon-greedy policy:
 
 During greedy evaluation, epsilon is set to zero.
 
+The final implementation uses the baseline Q-learning algorithm with a fixed epsilon parameter. Epsilon decay is not included in the final AI implementation.
+
 ---
 
 ## 3. System Architecture
@@ -171,7 +183,9 @@ project-09-delivery-agent/
 │   └── maps/
 │       ├── easy.json
 │       ├── medium.json
-│       └── hard.json
+│       ├── hard.json
+│       ├── medium_altered.json
+│       └── custom_test_02.json
 │
 ├── data/
 │   └── scenarios.json
@@ -184,6 +198,9 @@ project-09-delivery-agent/
 │
 ├── tests/
 │   └── test_project_09_sanity.py
+│
+├── Slides/
+│   └── midterm_slides.pdf
 │
 ├── experiment.py
 ├── evaluate_agent.py
@@ -235,7 +252,14 @@ Provides:
 
 **Streamlit Application — `starter/app.py`**
 
-Provides the interactive interface for training, running, visualizing, and comparing agents.
+Provides the interactive interface for:
+
+- Selecting maps and reward configurations
+- Training the Q-learning agent
+- Running the trained agent
+- Visualizing robot movement
+- Comparing agents
+- Creating and loading custom maps
 
 ---
 
@@ -254,16 +278,14 @@ Recommended environment:
 
 ### 4.2 Clone the Repository
 
+The latest final project version is maintained on the `main` branch.
+
 ```bash
 git clone https://github.com/duongthuy-design/project-09-delivery-agent.git
 
 cd project-09-delivery-agent
-```
 
-To work with the final-development branch:
-
-```bash
-git switch final-development
+git switch main
 ```
 
 ### 4.3 Create a Virtual Environment
@@ -314,7 +336,7 @@ http://localhost:8501
 
 The user can configure:
 
-- Map: Easy, Medium, or Hard
+- Map
 - Reward preset
 - Training episodes
 - Alpha (learning rate)
@@ -338,7 +360,78 @@ Click **Train Q-learning** to train the agent.
 
 The trained Q-table is retained in Streamlit session state for subsequent execution and visualization.
 
-### 5.2 Agent Execution
+### 5.2 Custom Map Loader
+
+The application includes a Custom Map Loader that allows users to create additional grid-world maps using JSON input.
+
+This feature makes it possible to test the Q-learning agent under different obstacle arrangements without manually modifying the original map files or environment code.
+
+**How to create a custom map:**
+
+1. Open the Streamlit application.
+2. Expand the **Custom Map Loader** section in the sidebar.
+3. Enter a custom map in the JSON text area.
+4. Provide a valid map name beginning with `custom_`.
+5. Check the grid and legend definitions.
+6. Click **Validate & Save Custom Map**.
+
+The application validates the JSON structure and checks whether the map can be loaded by the existing GridWorld environment.
+
+After successful validation, the map is saved to:
+
+```text
+environment/maps/
+```
+
+For example:
+
+```text
+environment/maps/custom_test_02.json
+```
+
+The application then refreshes, and the saved map becomes available in the Map selection dropdown.
+
+**Custom map requirements:**
+
+- The JSON root must be an object.
+- The map name must begin with `custom_`.
+- Grid rows must be strings.
+- The grid must be non-empty.
+- Legend symbols must contain one character.
+- Every symbol used in the grid must be defined in the legend.
+- The map must be compatible with the existing GridWorld environment.
+
+The following example illustrates the format of a custom map:
+
+```json
+{
+  "name": "custom_test_02",
+  "description": "Custom map with a different obstacle arrangement.",
+  "legend": {
+    "S": "START",
+    ".": "EMPTY",
+    "#": "WALL",
+    "P": "PICKUP",
+    "G": "GOAL",
+    "D": "DANGER"
+  },
+  "grid": [
+    "S........",
+    ".##......",
+    ".....P...",
+    ".#.......",
+    ".##...##.",
+    "..D......",
+    ".......G."
+  ]
+}
+```
+
+After selecting a different map, train the Q-learning agent on that map before evaluating its delivery performance.
+
+The Custom Map Loader creates additional map files without modifying the original Easy, Medium, and Hard maps.
+
+### 5.3 Agent Execution
 
 The interface provides:
 
@@ -492,6 +585,8 @@ However, the observed trained policy in the current experiments failed to comple
 Evaluates how improved reward incentives affect successful delivery, step efficiency, and hazard avoidance.
 
 F1 and X1 use the same Medium map but different reward presets.
+
+**Note:** `medium_altered` and `custom_test_02` are additional maps for altered-map testing. They are not additional benchmark scenarios in `data/scenarios.json`.
 
 ---
 
@@ -708,6 +803,8 @@ The project does not require external LLM APIs or pretrained Q-tables.
 
 The Q-learning algorithm is trained locally when the application or experiment scripts are executed.
 
+Custom maps can also be loaded and tested independently through the Streamlit application.
+
 ---
 
 ## 13. Project Contributions and Design
@@ -725,6 +822,9 @@ The completed application includes:
 - Tabular Q-learning
 - Epsilon-greedy action selection
 - Interactive map and reward selection
+- Custom Map Loader
+- JSON map validation and saving
+- Testing on altered obstacle maps
 - Animated robot execution
 - Package delivery status tracking
 - Path visualization
@@ -739,6 +839,8 @@ The completed application includes:
 
 The environment's original reward presets have been retained.
 
+The final implementation keeps the baseline Q-learning algorithm unchanged while extending the Streamlit application with custom map functionality.
+
 ---
 
 ## 14. Limitations and Future Improvements
@@ -747,11 +849,14 @@ Potential extensions include:
 
 - Side-by-side animated playback of Random and Q-learning agents
 - More extensive multi-seed experiments
-- Evaluation on altered or unseen obstacle maps
+- Evaluation on additional unseen obstacle maps
 - Improved exploration and tie-breaking analysis
 - Additional ablation studies
 - More comprehensive automated tests
 - Further analysis of reward exploitation behavior
+- A graphical cell-by-cell map editor
+
+The current Custom Map Loader accepts JSON input through a text area. It does not yet provide a graphical cell-by-cell map editor.
 
 The current Streamlit application animates the trained policy and provides quantitative Random Agent comparisons. It does not yet provide simultaneous animated playback of both agents.
 
@@ -761,18 +866,21 @@ The current Streamlit application animates the trained policy and provides quant
 
 The final submission package should follow the instructor's separate submission guide.
 
-The required submission structure includes:
+The project repository includes:
 
 - Midterm presentation slides in PDF format
 - Runnable project source code
-- Final report in the prescribed format
-- Instructions for reproducing the experiments
+- Original and additional map files
+- Experimental results
+- Instructions for installing and running the application
 
 The final report should document the experimental methodology, results, limitations, and interpretation of reward-design failures.
 
 Follow the submission guide's DOCX report requirement and naming conventions when preparing the final ZIP.
 
 Do not include virtual environments, local IDE configuration files, caches, or secrets in the submission package.
+
+The latest final project version is maintained on the `main` branch.
 
 ---
 
