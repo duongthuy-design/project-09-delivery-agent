@@ -13,8 +13,11 @@ Run:
 
 from __future__ import annotations
 
+import json
 import random
+import re
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -28,6 +31,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from environment.gridworld import (
     GridWorld,
+    MAPS_DIR,
     list_maps,
     list_reward_presets,
 )
@@ -81,7 +85,70 @@ class TrackingGridWorld(GridWorld):
 
         return result
 
+# ============================================================
+# CUSTOM MAP VALIDATION
+# ============================================================
 
+def validate_custom_map_json(map_data: dict, preset: str) -> str:
+    """Validate custom map JSON without modifying existing maps."""
+
+    if not isinstance(map_data, dict):
+        raise ValueError("JSON root must be an object.")
+
+    name = map_data.get("name")
+
+    # Only allow custom_ names to protect original maps.
+    if (
+        not isinstance(name, str)
+        or not re.fullmatch(r"custom_[A-Za-z0-9_-]+", name)
+    ):
+        raise ValueError(
+            "Map name must start with 'custom_' "
+            "and contain only letters, numbers, _ or -."
+        )
+
+    grid = map_data.get("grid")
+    legend = map_data.get("legend")
+
+    if not isinstance(grid, list) or not grid:
+        raise ValueError("Grid must be a non-empty list.")
+
+    if not all(isinstance(row, str) for row in grid):
+        raise ValueError("Every grid row must be a string.")
+
+    if not isinstance(legend, dict) or not legend:
+        raise ValueError("Legend must be a non-empty object.")
+
+    if any(len(symbol) != 1 for symbol in legend):
+        raise ValueError("Legend symbols must contain one character.")
+
+    unknown_symbols = set("".join(grid)) - set(legend)
+
+    if unknown_symbols:
+        raise ValueError(
+            f"Unknown grid symbols: {sorted(unknown_symbols)}"
+        )
+
+    # Use a temporary directory to validate the map
+    # through the existing GridWorld constructor.
+    with tempfile.TemporaryDirectory() as temp_dir:
+
+        temp_maps_dir = Path(temp_dir)
+
+        temp_file = temp_maps_dir / f"{name}.json"
+
+        temp_file.write_text(
+            json.dumps(map_data),
+            encoding="utf-8",
+        )
+
+        GridWorld(
+            map_name=name,
+            reward_preset=preset,
+            maps_dir=temp_maps_dir,
+        )
+
+    return name
 # ============================================================
 # 2. RESET ENVIRONMENT
 # ============================================================
@@ -252,6 +319,111 @@ with st.sidebar:
         "Reward configurations are loaded from "
         "environment/config.json."
     )
+    # --------------------------------------------------------
+    # CUSTOM MAP LOADER
+    # --------------------------------------------------------
+
+    with st.expander("Custom Map Loader"):
+
+        st.caption(
+            "Paste a custom JSON map to create "
+            "a new obstacle configuration."
+        )
+
+        custom_map_json = st.text_area(
+            "Map JSON",
+            value="""{
+      "name": "custom_demo",
+      "description": "Custom obstacle map.",
+      "legend": {
+        "S": "START",
+        ".": "EMPTY",
+        "#": "WALL",
+        "P": "PICKUP",
+        "G": "GOAL",
+        "D": "DANGER"
+      },
+      "grid": [
+        "S........",
+        "..##.....",
+        "....#P...",
+        "....#....",
+        "...###...",
+        "..D......",
+        ".......G."
+      ]
+    }""",
+            height=280,
+            key="custom_map_json_input",
+        )
+
+        save_custom_map = st.button(
+            "Validate & Save Custom Map",
+            use_container_width=True,
+            key="save_custom_map",
+        )
+
+        if save_custom_map:
+
+            try:
+
+                map_data = json.loads(custom_map_json)
+
+                custom_name = validate_custom_map_json(
+                    map_data,
+                    preset,
+                )
+
+                MAPS_DIR.mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
+
+                map_path = MAPS_DIR / f"{custom_name}.json"
+
+                temp_path = MAPS_DIR / f".{custom_name}.tmp"
+
+                temp_path.write_text(
+                    json.dumps(
+                        map_data,
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+
+                temp_path.replace(map_path)
+
+                # Clear old training results.
+                # The Q-learning algorithm itself is unchanged.
+                for key in (
+                        "trained_q_table",
+                        "training_rewards",
+                        "training_details",
+                        "comparison_results",
+                        "_env_key",
+                ):
+                    st.session_state.pop(key, None)
+
+                st.session_state["custom_map_notice"] = (
+                    f"Saved {custom_name}. "
+                    "Select it from the Map dropdown."
+                )
+
+                st.rerun()
+
+            except Exception as exc:
+
+                st.error(
+                    f"Invalid map: {exc}"
+                )
+
+    if "custom_map_notice" in st.session_state:
+        st.success(
+            st.session_state.pop("custom_map_notice")
+        )
+
+    st.divider()
 
     st.divider()
 

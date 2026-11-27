@@ -1,0 +1,21 @@
+{
+  "name": "custom_test_02",
+  "description": "Custom map with a different obstacle arrangement.",
+  "legend": {
+    "S": "START",
+    ".": "EMPTY",
+    "#": "WALL",
+    "P": "PICKUP",
+    "G": "GOAL",
+    "D": "DANGER"
+  },
+  "grid": [
+    "S........",
+    ".##......",
+    ".....P...",
+    ".#.......",
+    ".##...##.",
+    "..D......",
+    ".......G."
+  ]
+}

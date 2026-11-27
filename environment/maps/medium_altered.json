@@ -1,0 +1,21 @@
+{
+  "name": "medium_altered",
+  "description": "Altered medium map with a different wall arrangement for testing agent adaptability.",
+  "legend": {
+    "S": "START",
+    ".": "EMPTY",
+    "#": "WALL",
+    "P": "PICKUP",
+    "G": "GOAL",
+    "D": "DANGER"
+  },
+  "grid": [
+    "S........",
+    "..##.....",
+    "....#P...",
+    "....#....",
+    "...###...",
+    "..D......",
+    ".......G."
+  ]
+}
