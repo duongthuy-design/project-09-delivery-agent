@@ -150,15 +150,48 @@ def test_improved_reward_preset_restores_costs():
 # -- forbidden-core guards ---------------------------------------------------
 
 
-def test_select_action_is_not_implemented():
-    with pytest.raises(NotImplementedError):
-        student_core.select_action((0, 0, False), {}, ("UP", "DOWN", "LEFT", "RIGHT"), 0.1)
+
+# -- student AI core tests ---------------------------------------------------
 
 
-def test_q_learning_is_not_implemented():
-    env = GridWorld(map_name="easy", reward_preset="default")
-    with pytest.raises(NotImplementedError):
-        student_core.q_learning(env, episodes=1, alpha=0.1, gamma=0.9, epsilon=0.1)
+def test_select_action_chooses_best_action():
+    state = (0, 0, False)
+    actions = ("UP", "DOWN", "LEFT", "RIGHT")
+
+    q_table = {
+        (state, "UP"): -1.0,
+        (state, "DOWN"): 0.5,
+        (state, "LEFT"): 0.2,
+        (state, "RIGHT"): 10.0,
+    }
+
+    action = student_core.select_action(
+        state, q_table, actions, epsilon=0.0
+    )
+
+    assert action == "RIGHT"
+
+
+def test_q_learning_trains_q_table():
+    random.seed(42)
+
+    env = GridWorld(
+        map_name="easy",
+        reward_preset="default"
+    )
+
+    q_table = student_core.q_learning(
+        env,
+        episodes=100,
+        alpha=0.1,
+        gamma=0.9,
+        epsilon=0.1
+    )
+
+    assert isinstance(q_table, dict)
+    assert len(q_table) > 0
+    assert any(value != 0.0 for value in q_table.values())
+
 
 
 def test_no_pygame_import_anywhere_in_project():
