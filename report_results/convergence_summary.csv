@@ -1,0 +1,6 @@
+setting,convergence_episode
+"alpha=0.2, gamma=0.95",144
+"alpha=0.1, gamma=0.95",182
+"alpha=0.5, gamma=0.95",148
+"alpha=0.2, gamma=0.8",144
+"alpha=0.2, gamma=0.99",143

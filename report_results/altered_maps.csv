@@ -1,0 +1,6 @@
+map,episodes,seeds,success_percent,mean_steps_if_success,mean_reward,mean_train_seconds,danger_hits,shortest_safe_steps,all_runs_optimal_length
+easy,1000,5,100.0,10.0,15.0,0.03,0,10,True
+medium,1000,5,100.0,15.0,10.0,0.05,0,15,True
+hard,2000,5,100.0,46.0,-21.0,0.32,0,46,True
+medium_altered,1000,5,100.0,13.0,12.0,0.06,0,13,True
+custom_test_02,1000,5,100.0,13.0,12.0,0.04,0,13,True

@@ -1,0 +1,6 @@
+seed,q_entries,nonzero_q_entries,visited_states,greedy_action_counts
+11,174,0,54,{'UP': 54}
+22,173,0,52,{'UP': 52}
+33,177,0,55,{'UP': 55}
+44,173,0,52,{'UP': 52}
+55,171,0,51,{'UP': 51}

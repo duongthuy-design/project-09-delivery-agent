@@ -1,0 +1,6 @@
+map,states,shortest_safe_steps
+easy,96,10
+medium,110,15
+hard,170,46
+medium_altered,112,13
+custom_test_02,112,13
